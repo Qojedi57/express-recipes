@@ -35,6 +35,18 @@ router.post("/", async function (request, response) {
 });
 
 router.get("/:recipeId", async function (request, response) {
+    const recipeId = parseInt(request.params.recipeId);
+
+    const currentrecipe = await prisma.recipe.findFirst({
+        where: {
+            id:recipeId
+        }
+    })
+
+    response.status(200).json({
+        success:true,
+        recipe: currentrecipe
+    });
 
 });
 
