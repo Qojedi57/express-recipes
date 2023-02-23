@@ -10,7 +10,7 @@ export default function setupRecipeRouter(passport) {
     async function (request, response) {
       const allRecipes = await prisma.recipe.findMany({
         where: {
-          userId: 1,
+          userId: request.user.id,
         },
         include: {
           user: true,
@@ -23,21 +23,25 @@ export default function setupRecipeRouter(passport) {
       });
     }
   );
-  router.post("/", async function (request, response) {
-    const newRecipe = await prisma.recipe.create({
-      data: {
-        name: request.body.name,
-        description: request.body.description,
-        userId: 1,
-      },
-    });
+  router.post(
+    "/",
+    passport.authenticate("jwt", { session: false }),
+    async function (request, response) {
+      const newRecipe = await prisma.recipe.create({
+        data: {
+          name: request.body.name,
+          description: request.body.description,
+          userId: request.user.id,
+        },
+      });
 
-    console.log(newRecipe);
+      console.log(newRecipe);
 
-    response.status(201).json({
-      success: true,
-    });
-  });
+      response.status(201).json({
+        success: true,
+      });
+    }
+  );
 
   router.get("/:recipeId", async function (request, response) {
     const recipeId = parseInt(request.params.recipeId);
@@ -54,86 +58,82 @@ export default function setupRecipeRouter(passport) {
     });
   });
 
-  router.delete("/:recipeId", async function (request, response) {
-    const recipeId = parseInt(request.params.recipeId);
-    try {
-      await prisma.recipe.delete({
-        where: {
-          id: recipeId,
-        },
-      });
+  router.delete(
+    "/:recipeId",
+    passport.authenticate("jwt", { session: false }),
+    async function (request, response) {
+      const recipeId = parseInt(request.params.recipeId);
+      try {
+        await prisma.recipe.delete({
+          where: {
+            id: recipeId,
+          },
+        });
 
-      response.status(200).json({
-        success: true,
-      });
-    } catch (e) {
-      console.log(e);
-      if (e.code == "P2025") {
-        response.status(404).json({
-          success: false,
+        response.status(200).json({
+          success: true,
         });
-      } else {
-        response.status(500).json({
-          success: false,
-        });
+      } catch (e) {
+        console.log(e);
+        if (e.code == "P2025") {
+          response.status(404).json({
+            success: false,
+          });
+        } else {
+          response.status(500).json({
+            success: false,
+          });
+        }
       }
     }
-  });
+  );
 
-  router.put("/:recipeId", async function (request, response) {
-    const recipeId = parseInt(request.params.recipeId);
-    try {
-      await prisma.recipe.update({
-        where: {
-          id: recipeId,
-        },
-        data: {
-          ...request.body,
-        },
-      });
+  router.put(
+    "/:recipeId",
+    passport.authenticate("jwt", { session: false }),
+    async function (request, response) {
+      const recipeId = parseInt(request.params.recipeId);
+      try {
+        await prisma.recipe.update({
+          where: {
+            id: recipeId,
+          },
+          data: {
+            ...request.body,
+          },
+        });
 
-      response.status(200).json({
-        success: true,
-      });
-    } catch (e) {
-      console.log(e);
-      if (e.code == "P2025") {
-        response.status(404).json({
-          success: false,
+        response.status(200).json({
+          success: true,
         });
-      } else {
-        response.status(500).json({
-          success: false,
-        });
+      } catch (e) {
+        console.log(e);
+        if (e.code == "P2025") {
+          response.status(404).json({
+            success: false,
+          });
+        } else {
+          response.status(500).json({
+            success: false,
+          });
+        }
       }
     }
+  );
+
+  router.get("/", async (request, response) => {
+    const allRecipes = await prisma.recipe.findMany({
+      select: {
+        id: true,
+        name: true,
+        description: true,
+      },
+    });
+    response.status(200).json({
+      success: true,
+      allRecipes,
+    });
   });
 
- router.get("/", async (request, response) => {
-
-const allRecipes = await prisma.recipe.findMany({
-  select: {
-    id: true,
-    name: true,
-    description: true,
-  },
-});
-response.status(200).json({
-  success: true,
-  allRecipes,
-});
-});
-
-router.get("/:recipeId", async(request,response) =>{ 
-const currentRecipe = await prisma.recipe.findUnique({
-  where: {
-    id: request.params.recipeId,
-  },
-})
-response.status(200).json({
-  success: true,
-  currentRecipe,
-});
-})
   return router;
 }
