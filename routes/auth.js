@@ -2,107 +2,79 @@ import express from "express";
 import jwt, { verify } from "jsonwebtoken";
 import argon2 from "argon2";
 import prisma from "../db/index.js";
-export default function setupauthRouter(passport) {
-    const router = express.Router();
-router.get("/user",  passport.authenticate("jwt", { session: false }),async function (request, response){
-    const allRecipes = await prisma.recipe.findMany({
-      where: {
-        userId: 1,
-      },
-      include: {
-        user: true,
-      },
-    });
 
-    response.status(200).json({
-      success: true,
-      recipes: allRecipes,
-    });
+const router = express.Router();
+
+// /auth/signup
+router.post("/signup", async (request, response) => {
+  const user = await prisma.user.findFirst({
+    where: {
+      username: request.body.username,
+    },
   });
-  router.post("/", async function (request, response) {
-    const newRecipe = await prisma.recipe.create({
+
+  if (user) {
+    response.status(401).json({
+      success: false,
+      message: "User already exists",
+    });
+  } else {
+    const hashedPassword = await argon2.hash(request.body.password);
+
+    const newUser = await prisma.user.create({
       data: {
-        name: request.body.name,
-        description: request.body.description,
-        userId: 1,
+        username: request.body.username,
+        password: hashedPassword,
       },
     });
 
-    console.log(newRecipe);
-
-    response.status(201).json({
-      success: true,
-    });
-  });
-
-  router.get("/:recipeId", async function (request, response) {
-    const recipeId = parseInt(request.params.recipeId);
-
-    const currentrecipe = await prisma.recipe.findFirst({
-      where: {
-        id: recipeId,
-      },
-    });
-
-    response.status(200).json({
-      success: true,
-      recipe: currentrecipe,
-    });
-  });
-
-  router.delete("/:recipeId", async function (request, response) {
-    const recipeId = parseInt(request.params.recipeId);
-    try {
-      await prisma.recipe.delete({
-        where: {
-          id: recipeId,
-        },
-      });
-
-      response.status(200).json({
+    if (newUser) {
+      response.status(201).json({
         success: true,
+        message: "User successfully created",
       });
-    } catch (e) {
-      console.log(e);
-      if (e.code == "P2025") {
-        response.status(404).json({
-          success: false,
-        });
-      } else {
-        response.status(500).json({
-          success: false,
-        });
-      }
+    } else {
+      response.status(500).json({
+        success: false,
+        message: "Something went wrong",
+      });
     }
-  });
+  }
+});
+// /auth/login
+router.post("/login", async (request, response) => {
+    try{
+        const user = await prisma.user.findFirstOrThrow({
+            where: {
+                username: request.body.username
+            }
+        });
 
-  router.put("/:recipeId", async function (request, response) {
-    const recipeId = parseInt(request.params.recipeId);
-    try {
-      await prisma.recipe.update({
-        where: {
-          id: recipeId,
-        },
-        data: {
-          ...request.body,
-        },
-      });
+        const verifiedPassword = await argon2.verify(user.
+            password,request.body.password);
 
-      response.status(200).json({
-        success: true,
-      });
+            if(verifiedPassword){
+                const token = jwt.sign({user:user.username, id:
+                user.id}, "thisIsASecretKey");
+
+                    response.status(200).json({
+                        success:true,
+                        token
+                    });
+                } else{
+                    response.status(401).json({
+                        success: false,
+                        message: "Incorrect Username and/or password"
+            });
+        }
     } catch (e) {
-      console.log(e);
-      if (e.code == "P2025") {
-        response.status(404).json({
-          success: false,
-        });
-      } else {
-        response.status(500).json({
-          success: false,
-        });
-      }
-    }
-  });
-  return router;
+            response.status(401).json({
+                success: false,
+                message: "Incorrect Username and/or password"
+    });
 }
+});
+
+export default router;
+
+
